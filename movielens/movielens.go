@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
+	"time"
 
 	"github.com/mozillazg/request"
 )
@@ -43,10 +44,7 @@ func NewClient(httpClient *http.Client) *Client {
 	return c
 }
 
-// Login logs the user in and set cookies if successful, returns
-// error otherwise
-func (c *Client) Login(username string, password string) (*Client, error) {
-	url := strings.Join([]string{defaultBaseURL, "sessions"}, "/")
+func (c *Client) newRequest() *request.Request {
 	req := request.NewRequest(c.client)
 	req.Headers = map[string]string{
 		"Accept":          headerAccept,
@@ -59,6 +57,14 @@ func (c *Client) Login(username string, password string) (*Client, error) {
 		"Pragma":          headerPragma,
 		"User-Agent":      headerUserAgent,
 	}
+	return req
+}
+
+// Login logs the user in and set cookies if successful, returns
+// error otherwise
+func (c *Client) Login(username string, password string) (*Client, error) {
+	url := strings.Join([]string{defaultBaseURL, "sessions"}, "/")
+	req := c.newRequest()
 	req.Json = map[string]string{
 		"userName": username,
 		"password": password,
@@ -71,4 +77,42 @@ func (c *Client) Login(username string, password string) (*Client, error) {
 		return nil, errors.New(resp.Response.Status)
 	}
 	return c, nil
+}
+
+// GetMe fetchs user details
+func (c *Client) GetMe() (*User, error) {
+	url := strings.Join([]string{defaultBaseURL, "users/me"}, "/")
+	req := c.newRequest()
+	resp, err := req.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK() {
+		return nil, errors.New(resp.Response.Status)
+	}
+	j, err := resp.Json()
+	defer resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+	firstLoginString := j.GetPath("data", "details", "account", "firstLogin").MustString()
+	firstLogin, _ := time.Parse(time.RFC3339, firstLoginString)
+	user := &User{
+		Email:               j.GetPath("data", "details", "account", "email").MustString(),
+		UserName:            j.GetPath("data", "details", "account", "userName").MustString(),
+		TimeAsMemberSeconds: j.GetPath("data", "details", "account", "timeAsMemberSeconds").MustInt64(),
+		FirstLogin:          firstLogin,
+		Preferences: &UserPreference{
+			CanSendEmail:     j.GetPath("data", "details", "preferences", "canSendEmail").MustBool(),
+			NumMoviesPerPage: j.GetPath("data", "details", "preferences", "numMoviesPerPage").MustInt(),
+			MovieGroupTags:   j.GetPath("data", "details", "preferences", "movieGroupTags").MustStringArray(),
+		},
+		Recommender: &UserRecommender{
+			EngineID:     j.GetPath("data", "details", "recommender", "engineId").MustString(),
+			EngineWeight: j.GetPath("data", "details", "recommender", "engineWeight").MustFloat64(),
+			PopWeight:    j.GetPath("data", "details", "recommender", "popWeight").MustFloat64(),
+		},
+	}
+
+	return user, nil
 }
