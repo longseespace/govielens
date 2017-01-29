@@ -62,7 +62,7 @@ func (c *Client) newRequest() *request.Request {
 
 // Login logs the user in and set cookies if successful, returns
 // error otherwise
-func (c *Client) Login(username string, password string) (*Client, error) {
+func (c *Client) Login(username string, password string) error {
 	url := strings.Join([]string{defaultBaseURL, "sessions"}, "/")
 	req := c.newRequest()
 	req.Json = map[string]string{
@@ -71,12 +71,12 @@ func (c *Client) Login(username string, password string) (*Client, error) {
 	}
 	resp, err := req.Post(url)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if !resp.OK() {
-		return nil, errors.New(resp.Response.Status)
+		return errors.New(resp.Response.Status)
 	}
-	return c, nil
+	return nil
 }
 
 // GetMe fetchs user details
