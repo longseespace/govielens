@@ -1,11 +1,11 @@
 package movielens
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
-	"time"
 
 	"github.com/mozillazg/request"
 )
@@ -80,6 +80,7 @@ func (c *Client) Login(username string, password string) error {
 }
 
 // GetMe fetchs user details
+// Gets your user information such as: Number of Ratings, Email, User Name, Preferences, and Recommender Type.
 func (c *Client) GetMe() (*User, error) {
 	url := strings.Join([]string{defaultBaseURL, "users/me"}, "/")
 	req := c.newRequest()
@@ -95,24 +96,28 @@ func (c *Client) GetMe() (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	firstLoginString := j.GetPath("data", "details", "account", "firstLogin").MustString()
-	firstLogin, _ := time.Parse(time.RFC3339, firstLoginString)
-	user := &User{
-		Email:               j.GetPath("data", "details", "account", "email").MustString(),
-		UserName:            j.GetPath("data", "details", "account", "userName").MustString(),
-		TimeAsMemberSeconds: j.GetPath("data", "details", "account", "timeAsMemberSeconds").MustInt64(),
-		FirstLogin:          firstLogin,
-		Preferences: &UserPreference{
-			CanSendEmail:     j.GetPath("data", "details", "preferences", "canSendEmail").MustBool(),
-			NumMoviesPerPage: j.GetPath("data", "details", "preferences", "numMoviesPerPage").MustInt(),
-			MovieGroupTags:   j.GetPath("data", "details", "preferences", "movieGroupTags").MustStringArray(),
-		},
-		Recommender: &UserRecommender{
-			EngineID:     j.GetPath("data", "details", "recommender", "engineId").MustString(),
-			EngineWeight: j.GetPath("data", "details", "recommender", "engineWeight").MustFloat64(),
-			PopWeight:    j.GetPath("data", "details", "recommender", "popWeight").MustFloat64(),
-		},
-	}
-
+	user := MakeUserFromJSON(j)
 	return user, nil
+}
+
+// Explore search for movies.
+func (c *Client) Explore(params map[string]string) (*ExploreResponse, error) {
+	url := strings.Join([]string{defaultBaseURL, "movies/explore"}, "/")
+	req := c.newRequest()
+	req.Params = params
+	resp, err := req.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK() {
+		return nil, errors.New(resp.Response.Status)
+	}
+	b, err := resp.Content()
+	defer resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+	var exploreResponse ExploreResponseWrapper
+	err = json.Unmarshal(b, &exploreResponse)
+	return exploreResponse.Data, nil
 }

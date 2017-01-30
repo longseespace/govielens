@@ -28,3 +28,11 @@ func TestGetMe(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "test@nomadreact.com", my.Email)
 }
+
+func TestExplore(t *testing.T) {
+	params := map[string]string{
+		"hasRated": "yes",
+	}
+	resp, err := client.Explore(params)
+	assert.Nil(t, err)
+}
