@@ -33,6 +33,6 @@ func TestExplore(t *testing.T) {
 	params := map[string]string{
 		"hasRated": "yes",
 	}
-	resp, err := client.Explore(params)
+	_, err := client.Explore(params)
 	assert.Nil(t, err)
 }
